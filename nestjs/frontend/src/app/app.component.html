@@ -1,0 +1,252 @@
+<main class="shell">
+  <header class="app-header">
+    <div class="brand">
+      <div>
+        <h1>Blogx</h1>
+      </div>
+    </div>
+
+    <div class="search-box">
+      <span>Search</span>
+      <input
+        [ngModel]="search()"
+        (ngModelChange)="updateSearch($event)"
+        placeholder="Find posts by title, tag, or body"
+      />
+    </div>
+
+    <div class="account">
+      <strong>{{ auth()?.user?.name || 'Guest' }}</strong>
+      <span>{{ auth()?.user?.email || 'Login to sync notes' }}</span>
+    </div>
+  </header>
+
+  @if (message()) {
+    <section class="notice">{{ message() }}</section>
+  }
+
+  <section class="workspace">
+    <aside class="sidebar">
+      <section class="auth-card">
+        <div class="tabs">
+          <button
+            type="button"
+            [class.active]="authMode() === 'login'"
+            (click)="authMode.set('login')"
+          >
+            Login
+          </button>
+          <button
+            type="button"
+            [class.active]="authMode() === 'register'"
+            (click)="authMode.set('register')"
+          >
+            Register
+          </button>
+        </div>
+
+        <form (ngSubmit)="submitAuth()" class="stack">
+          @if (authMode() === 'register') {
+            <label>
+              Name
+              <input name="name" [(ngModel)]="authForm.name" />
+            </label>
+          }
+
+          <label>
+            Email
+            <input name="email" type="email" [(ngModel)]="authForm.email" />
+          </label>
+
+          <label>
+            Password
+            <input name="password" type="password" [(ngModel)]="authForm.password" />
+          </label>
+
+          @if (authMode() === 'login') {
+            <div class="form-meta">
+              <button type="button" class="badge-link" (click)="openForgotPassword()">
+                Forgot password?
+              </button>
+            </div>
+          }
+
+          <button type="submit" [disabled]="loading()">
+            {{ authMode() === 'register' ? 'Create account' : 'Login' }}
+          </button>
+        </form>
+
+        @if (showForgotPassword()) {
+          <form (ngSubmit)="sendResetToken()" class="inline-reset-form">
+            <label>
+              Email
+              <input name="forgotEmail" type="email" [(ngModel)]="forgotEmail" />
+            </label>
+            <div class="inline-actions">
+              <button type="submit" [disabled]="loading()">Send reset link</button>
+              <button
+                type="button"
+                class="ghost"
+                [disabled]="loading()"
+                (click)="showForgotPassword.set(false)"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        }
+
+        @if (showResetPassword()) {
+          <form (ngSubmit)="resetPassword()" class="inline-reset-form">
+            <label>
+              New password
+              <input name="newPassword" type="password" [(ngModel)]="newPassword" />
+            </label>
+            <label>
+              Confirm password
+              <input name="confirmPassword" type="password" [(ngModel)]="confirmPassword" />
+            </label>
+            <button type="submit" [disabled]="loading()">Reset password</button>
+          </form>
+        }
+
+        @if (googleEnabled) {
+          <div class="divider"><span>or</span></div>
+          <div id="googleSignInButton" class="google-button"></div>
+        }
+
+        <div class="session-actions">
+          <button type="button" class="ghost" [disabled]="!auth() || loading()" (click)="logout()">
+            Logout
+          </button>
+        </div>
+      </section>
+
+      <section class="mini-card">
+        <h2>Change password</h2>
+        <label>
+          Current password
+          <input
+            name="currentPassword"
+            type="password"
+            [(ngModel)]="changePasswordForm.currentPassword"
+          />
+        </label>
+        <label>
+          New password
+          <input
+            name="changeNewPassword"
+            type="password"
+            [(ngModel)]="changePasswordForm.newPassword"
+          />
+        </label>
+        <label>
+          Confirm password
+          <input
+            name="changeConfirmPassword"
+            type="password"
+            [(ngModel)]="changePasswordForm.confirmPassword"
+          />
+        </label>
+        <button type="button" [disabled]="!auth() || loading()" (click)="changePassword()">
+          Change password
+        </button>
+      </section>
+    </aside>
+
+    <section class="board">
+      <form class="composer" (ngSubmit)="savePost()">
+        <div class="composer-top">
+          <input
+            name="title"
+            [(ngModel)]="postForm.title"
+            placeholder="Title your blog note"
+          />
+          <label class="pin-toggle">
+            <input name="isPinned" type="checkbox" [(ngModel)]="postForm.isPinned" />
+            Pin
+          </label>
+        </div>
+
+        <textarea
+          name="content"
+          [(ngModel)]="postForm.content"
+          rows="5"
+          placeholder="Write a draft, idea, checklist, or short post..."
+        ></textarea>
+
+        <div class="composer-tools">
+          <select name="tag" [(ngModel)]="postForm.tag">
+            @for (tag of tags; track tag) {
+              <option [value]="tag">{{ tag }}</option>
+            }
+          </select>
+
+          <div class="color-row" aria-label="Post color">
+            @for (color of colors; track color) {
+              <button
+                type="button"
+                class="color-dot"
+                [class.selected]="postForm.color === color"
+                [style.background]="color"
+                (click)="postForm.color = color"
+              ></button>
+            }
+          </div>
+
+          <button type="submit" [disabled]="!auth() || loading()">Publish note</button>
+        </div>
+      </form>
+
+      <nav class="tag-bar">
+        @for (tag of availableTags(); track tag) {
+          <button
+            type="button"
+            [class.active]="activeTag() === tag"
+            (click)="setTag(tag)"
+          >
+            {{ tag }}
+          </button>
+        }
+      </nav>
+
+      <section class="notes-grid">
+        @for (post of filteredPosts(); track post.id) {
+          <article class="note-card" [style.background]="post.color">
+            <div class="note-head">
+              <span class="tag">{{ post.tag }}</span>
+              <button type="button" class="icon-button" (click)="togglePinned(post)">
+                {{ post.isPinned ? 'Pinned' : 'Pin' }}
+              </button>
+            </div>
+
+            <h2>{{ post.title }}</h2>
+            <p>{{ post.content }}</p>
+
+            <div class="note-footer">
+              <span>{{ post.updatedAt | date: 'mediumDate' }}</span>
+              <div class="note-actions">
+                @for (color of colors; track color) {
+                  <button
+                    type="button"
+                    class="mini-dot"
+                    [style.background]="color"
+                    (click)="changeColor(post, color)"
+                  ></button>
+                }
+                <button type="button" class="delete" (click)="deletePost(post)">
+                  Delete
+                </button>
+              </div>
+            </div>
+          </article>
+        } @empty {
+          <div class="empty-state">
+            <h2>No posts yet</h2>
+            <p>Login, write your first note, and it will appear on this board.</p>
+          </div>
+        }
+      </section>
+    </section>
+  </section>
+</main>
