@@ -5,10 +5,13 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes, randomUUID } from 'crypto';
 import * as jwt from 'jsonwebtoken';
-import { DatabaseService } from '../database/database.service';
+import { IsNull, Repository } from 'typeorm';
+import { PasswordResetTokenEntity } from '../database/entities/password-reset-token.entity';
+import { RefreshTokenEntity } from '../database/entities/refresh-token.entity';
 import { PublicUser } from '../users/user.types';
 import { UsersService } from '../users/users.service';
 import {
@@ -17,9 +20,7 @@ import {
   ForgotPasswordInput,
   GoogleAuthInput,
   LoginInput,
-  PasswordResetTokenRow,
   RefreshTokenInput,
-  RefreshTokenRow,
   RegisterInput,
   ResetPasswordInput,
 } from './auth.types';
@@ -38,7 +39,10 @@ export class AuthService {
 
   constructor(
     private readonly config: ConfigService,
-    private readonly database: DatabaseService,
+    @InjectRepository(RefreshTokenEntity)
+    private readonly refreshTokensRepository: Repository<RefreshTokenEntity>,
+    @InjectRepository(PasswordResetTokenEntity)
+    private readonly passwordResetTokensRepository: Repository<PasswordResetTokenEntity>,
     private readonly usersService: UsersService,
   ) {}
 
@@ -110,14 +114,18 @@ export class AuthService {
     }
 
     const tokenHash = this.hashToken(input.refreshToken);
-    const [storedToken] = await this.database.query<RefreshTokenRow>(
-      `
-        SELECT id, user_id, token_hash, expires_at, revoked_at, created_at
-        FROM refresh_tokens
-        WHERE token_hash = $1
-      `,
-      [tokenHash],
-    );
+    // Legacy pg version:
+    // const [storedToken] = await this.database.query<RefreshTokenRow>(
+    //   `
+    //     SELECT id, user_id, token_hash, expires_at, revoked_at, created_at
+    //     FROM refresh_tokens
+    //     WHERE token_hash = $1
+    //   `,
+    //   [tokenHash],
+    // );
+    const storedToken = await this.refreshTokensRepository.findOne({
+      where: { token_hash: tokenHash },
+    });
 
     if (
       !storedToken ||
@@ -127,13 +135,18 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token.');
     }
 
-    await this.database.query(
-      `
-        UPDATE refresh_tokens
-        SET revoked_at = now()
-        WHERE id = $1
-      `,
-      [storedToken.id],
+    // Legacy pg version:
+    // await this.database.query(
+    //   `
+    //     UPDATE refresh_tokens
+    //     SET revoked_at = now()
+    //     WHERE id = $1
+    //   `,
+    //   [storedToken.id],
+    // );
+    await this.refreshTokensRepository.update(
+      { id: storedToken.id },
+      { revoked_at: new Date() },
     );
 
     const user = await this.usersService.findById(storedToken.user_id);
@@ -157,12 +170,21 @@ export class AuthService {
 
     const resetToken = this.createRandomToken();
     const resetLink = this.createPasswordResetLink(resetToken);
-    await this.database.query(
-      `
-        INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at)
-        VALUES ($1, $2, $3, now() + interval '30 minutes')
-      `,
-      [randomUUID(), user.id, this.hashToken(resetToken)],
+    // Legacy pg version:
+    // await this.database.query(
+    //   `
+    //     INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at)
+    //     VALUES ($1, $2, $3, now() + interval '30 minutes')
+    //   `,
+    //   [randomUUID(), user.id, this.hashToken(resetToken)],
+    // );
+    await this.passwordResetTokensRepository.save(
+      this.passwordResetTokensRepository.create({
+        id: randomUUID(),
+        user_id: user.id,
+        token_hash: this.hashToken(resetToken),
+        expires_at: new Date(Date.now() + 30 * 60 * 1000),
+      }),
     );
 
     const emailSent = await this.sendPasswordResetEmail(user.email, resetLink);
@@ -186,36 +208,50 @@ export class AuthService {
     }
 
     const tokenHash = this.hashToken(input.token);
-    const [storedToken] = await this.database.query<PasswordResetTokenRow>(
-      `
-        SELECT id, user_id, token_hash, expires_at, used_at, created_at
-        FROM password_reset_tokens
-        WHERE token_hash = $1
-      `,
-      [tokenHash],
-    );
+    // Legacy pg version:
+    // const [storedToken] = await this.database.query<PasswordResetTokenRow>(
+    //   `
+    //     SELECT id, user_id, token_hash, expires_at, used_at, created_at
+    //     FROM password_reset_tokens
+    //     WHERE token_hash = $1
+    //   `,
+    //   [tokenHash],
+    // );
+    const storedToken = await this.passwordResetTokensRepository.findOne({
+      where: { token_hash: tokenHash },
+    });
 
     if (!storedToken || storedToken.used_at || storedToken.expires_at.getTime() <= Date.now()) {
       throw new BadRequestException('Invalid or expired reset token.');
     }
 
     await this.usersService.updatePassword(storedToken.user_id, input.password);
-    await this.database.query(
-      `
-        UPDATE password_reset_tokens
-        SET used_at = now()
-        WHERE id = $1
-      `,
-      [storedToken.id],
+    // Legacy pg version:
+    // await this.database.query(
+    //   `
+    //     UPDATE password_reset_tokens
+    //     SET used_at = now()
+    //     WHERE id = $1
+    //   `,
+    //   [storedToken.id],
+    // );
+    await this.passwordResetTokensRepository.update(
+      { id: storedToken.id },
+      { used_at: new Date() },
     );
 
-    await this.database.query(
-      `
-        UPDATE refresh_tokens
-        SET revoked_at = now()
-        WHERE user_id = $1 AND revoked_at IS NULL
-      `,
-      [storedToken.user_id],
+    // Legacy pg version:
+    // await this.database.query(
+    //   `
+    //     UPDATE refresh_tokens
+    //     SET revoked_at = now()
+    //     WHERE user_id = $1 AND revoked_at IS NULL
+    //   `,
+    //   [storedToken.user_id],
+    // );
+    await this.refreshTokensRepository.update(
+      { user_id: storedToken.user_id, revoked_at: IsNull() },
+      { revoked_at: new Date() },
     );
 
     return { message: 'Password was reset.' };
@@ -258,12 +294,21 @@ export class AuthService {
     const refreshToken = this.createRandomToken();
     const days = Number(this.config.get<string>('REFRESH_TOKEN_DAYS') ?? 7);
 
-    await this.database.query(
-      `
-        INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at)
-        VALUES ($1, $2, $3, now() + ($4::int * interval '1 day'))
-      `,
-      [randomUUID(), user.id, this.hashToken(refreshToken), days],
+    // Legacy pg version:
+    // await this.database.query(
+    //   `
+    //     INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at)
+    //     VALUES ($1, $2, $3, now() + ($4::int * interval '1 day'))
+    //   `,
+    //   [randomUUID(), user.id, this.hashToken(refreshToken), days],
+    // );
+    await this.refreshTokensRepository.save(
+      this.refreshTokensRepository.create({
+        id: randomUUID(),
+        user_id: user.id,
+        token_hash: this.hashToken(refreshToken),
+        expires_at: new Date(Date.now() + days * 24 * 60 * 60 * 1000),
+      }),
     );
 
     return {
@@ -274,24 +319,34 @@ export class AuthService {
   }
 
   private async revokeRefreshToken(refreshToken: string) {
-    await this.database.query(
-      `
-        UPDATE refresh_tokens
-        SET revoked_at = now()
-        WHERE token_hash = $1 AND revoked_at IS NULL
-      `,
-      [this.hashToken(refreshToken)],
+    // Legacy pg version:
+    // await this.database.query(
+    //   `
+    //     UPDATE refresh_tokens
+    //     SET revoked_at = now()
+    //     WHERE token_hash = $1 AND revoked_at IS NULL
+    //   `,
+    //   [this.hashToken(refreshToken)],
+    // );
+    await this.refreshTokensRepository.update(
+      { token_hash: this.hashToken(refreshToken), revoked_at: IsNull() },
+      { revoked_at: new Date() },
     );
   }
 
   private async revokeRefreshTokensForUser(userId: string) {
-    await this.database.query(
-      `
-        UPDATE refresh_tokens
-        SET revoked_at = now()
-        WHERE user_id = $1 AND revoked_at IS NULL
-      `,
-      [userId],
+    // Legacy pg version:
+    // await this.database.query(
+    //   `
+    //     UPDATE refresh_tokens
+    //     SET revoked_at = now()
+    //     WHERE user_id = $1 AND revoked_at IS NULL
+    //   `,
+    //   [userId],
+    // );
+    await this.refreshTokensRepository.update(
+      { user_id: userId, revoked_at: IsNull() },
+      { revoked_at: new Date() },
     );
   }
 

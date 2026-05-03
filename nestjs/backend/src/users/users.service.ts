@@ -3,21 +3,30 @@ import {
   ConflictException,
   Injectable,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
-import { DatabaseService } from '../database/database.service';
+import { Repository } from 'typeorm';
+import { UserEntity } from '../database/entities/user.entity';
 import { CreateUserInput, PublicUser, UserRow } from './user.types';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    @InjectRepository(UserEntity)
+    private readonly usersRepository: Repository<UserEntity>,
+  ) {}
 
   async findAll(): Promise<PublicUser[]> {
-    const rows = await this.database.query<UserRow>(`
-      SELECT id, email, name, password_hash, created_at, updated_at
-      FROM users
-      ORDER BY created_at DESC
-    `);
+    // Legacy pg version:
+    // const rows = await this.database.query<UserRow>(`
+    //   SELECT id, email, name, password_hash, created_at, updated_at
+    //   FROM users
+    //   ORDER BY created_at DESC
+    // `);
+    const rows = await this.usersRepository.find({
+      order: { created_at: 'DESC' },
+    });
 
     return rows.map((row) => this.toPublicUser(row));
   }
@@ -38,13 +47,22 @@ export class UsersService {
     const passwordHash = await bcrypt.hash(password, 10);
 
     try {
-      const [user] = await this.database.query<UserRow>(
-        `
-          INSERT INTO users (id, email, name, password_hash)
-          VALUES ($1, $2, $3, $4)
-          RETURNING id, email, name, password_hash, created_at, updated_at
-        `,
-        [randomUUID(), email, name, passwordHash],
+      // Legacy pg version:
+      // const [user] = await this.database.query<UserRow>(
+      //   `
+      //     INSERT INTO users (id, email, name, password_hash)
+      //     VALUES ($1, $2, $3, $4)
+      //     RETURNING id, email, name, password_hash, created_at, updated_at
+      //   `,
+      //   [randomUUID(), email, name, passwordHash],
+      // );
+      const user = await this.usersRepository.save(
+        this.usersRepository.create({
+          id: randomUUID(),
+          email,
+          name,
+          password_hash: passwordHash,
+        }),
       );
 
       return this.toPublicUser(user);
@@ -58,27 +76,33 @@ export class UsersService {
   }
 
   async findByEmailWithPassword(email: string): Promise<UserRow | null> {
-    const [user] = await this.database.query<UserRow>(
-      `
-        SELECT id, email, name, password_hash, created_at, updated_at
-        FROM users
-        WHERE email = $1
-      `,
-      [email.trim().toLowerCase()],
-    );
+    // Legacy pg version:
+    // const [user] = await this.database.query<UserRow>(
+    //   `
+    //     SELECT id, email, name, password_hash, created_at, updated_at
+    //     FROM users
+    //     WHERE email = $1
+    //   `,
+    //   [email.trim().toLowerCase()],
+    // );
+    const user = await this.usersRepository.findOne({
+      where: { email: email.trim().toLowerCase() },
+    });
 
     return user ?? null;
   }
 
   async findByIdWithPassword(id: string): Promise<UserRow | null> {
-    const [user] = await this.database.query<UserRow>(
-      `
-        SELECT id, email, name, password_hash, created_at, updated_at
-        FROM users
-        WHERE id = $1
-      `,
-      [id],
-    );
+    // Legacy pg version:
+    // const [user] = await this.database.query<UserRow>(
+    //   `
+    //     SELECT id, email, name, password_hash, created_at, updated_at
+    //     FROM users
+    //     WHERE id = $1
+    //   `,
+    //   [id],
+    // );
+    const user = await this.usersRepository.findOne({ where: { id } });
 
     return user ?? null;
   }
@@ -89,14 +113,16 @@ export class UsersService {
   }
 
   async findById(id: string): Promise<PublicUser | null> {
-    const [user] = await this.database.query<UserRow>(
-      `
-        SELECT id, email, name, password_hash, created_at, updated_at
-        FROM users
-        WHERE id = $1
-      `,
-      [id],
-    );
+    // Legacy pg version:
+    // const [user] = await this.database.query<UserRow>(
+    //   `
+    //     SELECT id, email, name, password_hash, created_at, updated_at
+    //     FROM users
+    //     WHERE id = $1
+    //   `,
+    //   [id],
+    // );
+    const user = await this.usersRepository.findOne({ where: { id } });
 
     return user ? this.toPublicUser(user) : null;
   }
@@ -108,13 +134,18 @@ export class UsersService {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    await this.database.query(
-      `
-        UPDATE users
-        SET password_hash = $1, updated_at = now()
-        WHERE id = $2
-      `,
-      [passwordHash, userId],
+    // Legacy pg version:
+    // await this.database.query(
+    //   `
+    //     UPDATE users
+    //     SET password_hash = $1, updated_at = now()
+    //     WHERE id = $2
+    //   `,
+    //   [passwordHash, userId],
+    // );
+    await this.usersRepository.update(
+      { id: userId },
+      { password_hash: passwordHash, updated_at: new Date() },
     );
   }
 
@@ -124,13 +155,22 @@ export class UsersService {
     const passwordHash = await bcrypt.hash(randomUUID(), 10);
 
     try {
-      const [user] = await this.database.query<UserRow>(
-        `
-          INSERT INTO users (id, email, name, password_hash)
-          VALUES ($1, $2, $3, $4)
-          RETURNING id, email, name, password_hash, created_at, updated_at
-        `,
-        [randomUUID(), email, name, passwordHash],
+      // Legacy pg version:
+      // const [user] = await this.database.query<UserRow>(
+      //   `
+      //     INSERT INTO users (id, email, name, password_hash)
+      //     VALUES ($1, $2, $3, $4)
+      //     RETURNING id, email, name, password_hash, created_at, updated_at
+      //   `,
+      //   [randomUUID(), email, name, passwordHash],
+      // );
+      const user = await this.usersRepository.save(
+        this.usersRepository.create({
+          id: randomUUID(),
+          email,
+          name,
+          password_hash: passwordHash,
+        }),
       );
 
       return this.toPublicUser(user);
@@ -160,8 +200,12 @@ export class UsersService {
     return (
       typeof error === 'object' &&
       error !== null &&
-      'code' in error &&
-      error.code === '23505'
+      (('code' in error && error.code === '23505') ||
+        ('driverError' in error &&
+          typeof error.driverError === 'object' &&
+          error.driverError !== null &&
+          'code' in error.driverError &&
+          error.driverError.code === '23505'))
     );
   }
 }

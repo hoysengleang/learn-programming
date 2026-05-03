@@ -4,6 +4,8 @@ import { Pool, QueryResultRow } from 'pg';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
+  // Legacy pg implementation kept for reference. The active version now uses
+  // TypeORM repositories through DatabaseModule.
   private readonly pool: Pool;
 
   constructor(private readonly config: ConfigService) {

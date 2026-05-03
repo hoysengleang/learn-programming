@@ -4,8 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { DatabaseService } from '../database/database.service';
+import { Repository } from 'typeorm';
+import { PostEntity } from '../database/entities/post.entity';
 import { CreatePostInput, PostRow, PublicPost, UpdatePostInput } from './post.types';
 
 const ALLOWED_COLORS = new Set([
@@ -19,18 +21,26 @@ const ALLOWED_COLORS = new Set([
 
 @Injectable()
 export class PostsService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    @InjectRepository(PostEntity)
+    private readonly postsRepository: Repository<PostEntity>,
+  ) {}
 
   async findAll(userId: string): Promise<PublicPost[]> {
-    const rows = await this.database.query<PostRow>(
-      `
-        SELECT id, user_id, title, content, tag, color, is_pinned, created_at, updated_at
-        FROM posts
-        WHERE user_id = $1
-        ORDER BY is_pinned DESC, updated_at DESC
-      `,
-      [userId],
-    );
+    // Legacy pg version:
+    // const rows = await this.database.query<PostRow>(
+    //   `
+    //     SELECT id, user_id, title, content, tag, color, is_pinned, created_at, updated_at
+    //     FROM posts
+    //     WHERE user_id = $1
+    //     ORDER BY is_pinned DESC, updated_at DESC
+    //   `,
+    //   [userId],
+    // );
+    const rows = await this.postsRepository.find({
+      where: { user_id: userId },
+      order: { is_pinned: 'DESC', updated_at: 'DESC' },
+    });
 
     return rows.map((row) => this.toPublicPost(row));
   }
@@ -43,21 +53,33 @@ export class PostsService {
       throw new BadRequestException('Title and content are required.');
     }
 
-    const [post] = await this.database.query<PostRow>(
-      `
-        INSERT INTO posts (id, user_id, title, content, tag, color, is_pinned)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id, user_id, title, content, tag, color, is_pinned, created_at, updated_at
-      `,
-      [
-        randomUUID(),
-        userId,
+    // Legacy pg version:
+    // const [post] = await this.database.query<PostRow>(
+    //   `
+    //     INSERT INTO posts (id, user_id, title, content, tag, color, is_pinned)
+    //     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    //     RETURNING id, user_id, title, content, tag, color, is_pinned, created_at, updated_at
+    //   `,
+    //   [
+    //     randomUUID(),
+    //     userId,
+    //     title,
+    //     content,
+    //     this.cleanTag(input.tag),
+    //     this.cleanColor(input.color),
+    //     input.isPinned ?? false,
+    //   ],
+    // );
+    const post = await this.postsRepository.save(
+      this.postsRepository.create({
+        id: randomUUID(),
+        user_id: userId,
         title,
         content,
-        this.cleanTag(input.tag),
-        this.cleanColor(input.color),
-        input.isPinned ?? false,
-      ],
+        tag: this.cleanTag(input.tag),
+        color: this.cleanColor(input.color),
+        is_pinned: input.isPinned ?? false,
+      }),
     );
 
     return this.toPublicPost(post);
@@ -79,35 +101,49 @@ export class PostsService {
       throw new BadRequestException('Title and content cannot be empty.');
     }
 
-    const [post] = await this.database.query<PostRow>(
-      `
-        UPDATE posts
-        SET title = $1,
-            content = $2,
-            tag = $3,
-            color = $4,
-            is_pinned = $5,
-            updated_at = now()
-        WHERE id = $6
-        RETURNING id, user_id, title, content, tag, color, is_pinned, created_at, updated_at
-      `,
-      [
+    // Legacy pg version:
+    // const [post] = await this.database.query<PostRow>(
+    //   `
+    //     UPDATE posts
+    //     SET title = $1,
+    //         content = $2,
+    //         tag = $3,
+    //         color = $4,
+    //         is_pinned = $5,
+    //         updated_at = now()
+    //     WHERE id = $6
+    //     RETURNING id, user_id, title, content, tag, color, is_pinned, created_at, updated_at
+    //   `,
+    //   [
+    //     title,
+    //     content,
+    //     this.cleanTag(input.tag ?? current.tag),
+    //     this.cleanColor(input.color ?? current.color),
+    //     input.isPinned ?? current.isPinned,
+    //     postId,
+    //   ],
+    // );
+    await this.postsRepository.update(
+      { id: postId },
+      {
         title,
         content,
-        this.cleanTag(input.tag ?? current.tag),
-        this.cleanColor(input.color ?? current.color),
-        input.isPinned ?? current.isPinned,
-        postId,
-      ],
+        tag: this.cleanTag(input.tag ?? current.tag),
+        color: this.cleanColor(input.color ?? current.color),
+        is_pinned: input.isPinned ?? current.isPinned,
+        updated_at: new Date(),
+      },
     );
 
-    return this.toPublicPost(post);
+    return this.findOne(postId);
   }
 
   async remove(userId: string, postId: string) {
     await this.ensureOwner(userId, postId);
 
-    await this.database.query('DELETE FROM posts WHERE id = $1', [postId]);
+    // Legacy pg version:
+    // await this.database.query('DELETE FROM posts WHERE id = $1', [postId]);
+    await this.postsRepository.delete({ id: postId });
     return { message: 'Post deleted.' };
   }
 
@@ -120,14 +156,16 @@ export class PostsService {
   }
 
   private async findOne(postId: string): Promise<PublicPost> {
-    const [post] = await this.database.query<PostRow>(
-      `
-        SELECT id, user_id, title, content, tag, color, is_pinned, created_at, updated_at
-        FROM posts
-        WHERE id = $1
-      `,
-      [postId],
-    );
+    // Legacy pg version:
+    // const [post] = await this.database.query<PostRow>(
+    //   `
+    //     SELECT id, user_id, title, content, tag, color, is_pinned, created_at, updated_at
+    //     FROM posts
+    //     WHERE id = $1
+    //   `,
+    //   [postId],
+    // );
+    const post = await this.postsRepository.findOne({ where: { id: postId } });
 
     if (!post) {
       throw new NotFoundException('Post was not found.');
