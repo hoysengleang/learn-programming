@@ -5,11 +5,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectModel } from '@nestjs/sequelize';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes, randomUUID } from 'crypto';
 import * as jwt from 'jsonwebtoken';
-import { IsNull, Repository } from 'typeorm';
 import { PasswordResetTokenEntity } from '../database/entities/password-reset-token.entity';
 import { RefreshTokenEntity } from '../database/entities/refresh-token.entity';
 import { PublicUser } from '../users/user.types';
@@ -39,10 +38,10 @@ export class AuthService {
 
   constructor(
     private readonly config: ConfigService,
-    @InjectRepository(RefreshTokenEntity)
-    private readonly refreshTokensRepository: Repository<RefreshTokenEntity>,
-    @InjectRepository(PasswordResetTokenEntity)
-    private readonly passwordResetTokensRepository: Repository<PasswordResetTokenEntity>,
+    @InjectModel(RefreshTokenEntity)
+    private readonly refreshTokensModel: typeof RefreshTokenEntity,
+    @InjectModel(PasswordResetTokenEntity)
+    private readonly passwordResetTokensModel: typeof PasswordResetTokenEntity,
     private readonly usersService: UsersService,
   ) {}
 
@@ -123,7 +122,7 @@ export class AuthService {
     //   `,
     //   [tokenHash],
     // );
-    const storedToken = await this.refreshTokensRepository.findOne({
+    const storedToken = await this.refreshTokensModel.findOne({
       where: { token_hash: tokenHash },
     });
 
@@ -144,9 +143,9 @@ export class AuthService {
     //   `,
     //   [storedToken.id],
     // );
-    await this.refreshTokensRepository.update(
-      { id: storedToken.id },
+    await this.refreshTokensModel.update(
       { revoked_at: new Date() },
+      { where: { id: storedToken.id } },
     );
 
     const user = await this.usersService.findById(storedToken.user_id);
@@ -178,14 +177,12 @@ export class AuthService {
     //   `,
     //   [randomUUID(), user.id, this.hashToken(resetToken)],
     // );
-    await this.passwordResetTokensRepository.save(
-      this.passwordResetTokensRepository.create({
-        id: randomUUID(),
-        user_id: user.id,
-        token_hash: this.hashToken(resetToken),
-        expires_at: new Date(Date.now() + 30 * 60 * 1000),
-      }),
-    );
+    await this.passwordResetTokensModel.create({
+      id: randomUUID(),
+      user_id: user.id,
+      token_hash: this.hashToken(resetToken),
+      expires_at: new Date(Date.now() + 30 * 60 * 1000),
+    });
 
     const emailSent = await this.sendPasswordResetEmail(user.email, resetLink);
 
@@ -217,7 +214,7 @@ export class AuthService {
     //   `,
     //   [tokenHash],
     // );
-    const storedToken = await this.passwordResetTokensRepository.findOne({
+    const storedToken = await this.passwordResetTokensModel.findOne({
       where: { token_hash: tokenHash },
     });
 
@@ -235,9 +232,9 @@ export class AuthService {
     //   `,
     //   [storedToken.id],
     // );
-    await this.passwordResetTokensRepository.update(
-      { id: storedToken.id },
+    await this.passwordResetTokensModel.update(
       { used_at: new Date() },
+      { where: { id: storedToken.id } },
     );
 
     // Legacy pg version:
@@ -249,9 +246,9 @@ export class AuthService {
     //   `,
     //   [storedToken.user_id],
     // );
-    await this.refreshTokensRepository.update(
-      { user_id: storedToken.user_id, revoked_at: IsNull() },
+    await this.refreshTokensModel.update(
       { revoked_at: new Date() },
+      { where: { user_id: storedToken.user_id, revoked_at: null } },
     );
 
     return { message: 'Password was reset.' };
@@ -302,14 +299,12 @@ export class AuthService {
     //   `,
     //   [randomUUID(), user.id, this.hashToken(refreshToken), days],
     // );
-    await this.refreshTokensRepository.save(
-      this.refreshTokensRepository.create({
-        id: randomUUID(),
-        user_id: user.id,
-        token_hash: this.hashToken(refreshToken),
-        expires_at: new Date(Date.now() + days * 24 * 60 * 60 * 1000),
-      }),
-    );
+    await this.refreshTokensModel.create({
+      id: randomUUID(),
+      user_id: user.id,
+      token_hash: this.hashToken(refreshToken),
+      expires_at: new Date(Date.now() + days * 24 * 60 * 60 * 1000),
+    });
 
     return {
       user,
@@ -328,9 +323,14 @@ export class AuthService {
     //   `,
     //   [this.hashToken(refreshToken)],
     // );
-    await this.refreshTokensRepository.update(
-      { token_hash: this.hashToken(refreshToken), revoked_at: IsNull() },
+    await this.refreshTokensModel.update(
       { revoked_at: new Date() },
+      {
+        where: {
+          token_hash: this.hashToken(refreshToken),
+          revoked_at: null,
+        },
+      },
     );
   }
 
@@ -344,9 +344,9 @@ export class AuthService {
     //   `,
     //   [userId],
     // );
-    await this.refreshTokensRepository.update(
-      { user_id: userId, revoked_at: IsNull() },
+    await this.refreshTokensModel.update(
       { revoked_at: new Date() },
+      { where: { user_id: userId, revoked_at: null } },
     );
   }
 

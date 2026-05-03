@@ -1,43 +1,45 @@
 import {
+  BelongsTo,
   Column,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  PrimaryColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+  DataType,
+  ForeignKey,
+  Model,
+  PrimaryKey,
+  Table,
+} from 'sequelize-typescript';
 import { UserEntity } from './user.entity';
 
-@Entity('posts')
-export class PostEntity {
-  @PrimaryColumn('uuid')
-  id!: string;
+@Table({ tableName: 'posts', timestamps: false })
+export class PostEntity extends Model {
+  @PrimaryKey
+  @Column({ type: DataType.UUID })
+  declare id: string;
 
-  @Column({ type: 'uuid' })
-  user_id!: string;
+  @ForeignKey(() => UserEntity)
+  @Column({ type: DataType.UUID, allowNull: false })
+  declare user_id: string;
 
-  @ManyToOne(() => UserEntity, (user) => user.posts, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'user_id' })
-  user?: UserEntity;
+  @BelongsTo(() => UserEntity, { foreignKey: 'user_id', onDelete: 'CASCADE' })
+  declare user?: UserEntity;
 
-  @Column({ type: 'text' })
-  title!: string;
+  @Column({ type: DataType.TEXT, allowNull: false })
+  declare title: string;
 
-  @Column({ type: 'text' })
-  content!: string;
+  @Column({ type: DataType.TEXT, allowNull: false })
+  declare content: string;
 
-  @Column({ type: 'text', default: 'General' })
-  tag!: string;
+  @Column({ type: DataType.TEXT, allowNull: false, defaultValue: 'General' })
+  declare tag: string;
 
-  @Column({ type: 'text', default: '#fff8c5' })
-  color!: string;
+  @Column({ type: DataType.TEXT, allowNull: false, defaultValue: '#fff8c5' })
+  declare color: string;
 
-  @Column({ type: 'boolean', default: false })
-  is_pinned!: boolean;
+  @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
+  declare is_pinned: boolean;
 
-  @Column({ type: 'timestamptz', default: () => 'now()' })
-  created_at!: Date;
+  @Column({ type: DataType.DATE, allowNull: false, defaultValue: DataType.NOW })
+  declare created_at: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz', default: () => 'now()' })
-  updated_at!: Date;
+  @Column({ type: DataType.DATE, allowNull: false, defaultValue: DataType.NOW })
+  declare updated_at: Date;
 }

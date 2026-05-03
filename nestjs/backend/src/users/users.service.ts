@@ -3,18 +3,17 @@ import {
   ConflictException,
   Injectable,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectModel } from '@nestjs/sequelize';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
-import { Repository } from 'typeorm';
 import { UserEntity } from '../database/entities/user.entity';
 import { CreateUserInput, PublicUser, UserRow } from './user.types';
 
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectRepository(UserEntity)
-    private readonly usersRepository: Repository<UserEntity>,
+    @InjectModel(UserEntity)
+    private readonly usersModel: typeof UserEntity,
   ) {}
 
   async findAll(): Promise<PublicUser[]> {
@@ -24,8 +23,8 @@ export class UsersService {
     //   FROM users
     //   ORDER BY created_at DESC
     // `);
-    const rows = await this.usersRepository.find({
-      order: { created_at: 'DESC' },
+    const rows = await this.usersModel.findAll({
+      order: [['created_at', 'DESC']],
     });
 
     return rows.map((row) => this.toPublicUser(row));
@@ -56,14 +55,12 @@ export class UsersService {
       //   `,
       //   [randomUUID(), email, name, passwordHash],
       // );
-      const user = await this.usersRepository.save(
-        this.usersRepository.create({
-          id: randomUUID(),
-          email,
-          name,
-          password_hash: passwordHash,
-        }),
-      );
+      const user = await this.usersModel.create({
+        id: randomUUID(),
+        email,
+        name,
+        password_hash: passwordHash,
+      });
 
       return this.toPublicUser(user);
     } catch (error) {
@@ -85,7 +82,7 @@ export class UsersService {
     //   `,
     //   [email.trim().toLowerCase()],
     // );
-    const user = await this.usersRepository.findOne({
+    const user = await this.usersModel.findOne({
       where: { email: email.trim().toLowerCase() },
     });
 
@@ -102,7 +99,7 @@ export class UsersService {
     //   `,
     //   [id],
     // );
-    const user = await this.usersRepository.findOne({ where: { id } });
+    const user = await this.usersModel.findOne({ where: { id } });
 
     return user ?? null;
   }
@@ -122,7 +119,7 @@ export class UsersService {
     //   `,
     //   [id],
     // );
-    const user = await this.usersRepository.findOne({ where: { id } });
+    const user = await this.usersModel.findOne({ where: { id } });
 
     return user ? this.toPublicUser(user) : null;
   }
@@ -143,9 +140,9 @@ export class UsersService {
     //   `,
     //   [passwordHash, userId],
     // );
-    await this.usersRepository.update(
-      { id: userId },
+    await this.usersModel.update(
       { password_hash: passwordHash, updated_at: new Date() },
+      { where: { id: userId } },
     );
   }
 
@@ -164,14 +161,12 @@ export class UsersService {
       //   `,
       //   [randomUUID(), email, name, passwordHash],
       // );
-      const user = await this.usersRepository.save(
-        this.usersRepository.create({
-          id: randomUUID(),
-          email,
-          name,
-          password_hash: passwordHash,
-        }),
-      );
+      const user = await this.usersModel.create({
+        id: randomUUID(),
+        email,
+        name,
+        password_hash: passwordHash,
+      });
 
       return this.toPublicUser(user);
     } catch (error) {
@@ -201,11 +196,7 @@ export class UsersService {
       typeof error === 'object' &&
       error !== null &&
       (('code' in error && error.code === '23505') ||
-        ('driverError' in error &&
-          typeof error.driverError === 'object' &&
-          error.driverError !== null &&
-          'code' in error.driverError &&
-          error.driverError.code === '23505'))
+        ('name' in error && error.name === 'SequelizeUniqueConstraintError'))
     );
   }
 }

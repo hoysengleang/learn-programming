@@ -4,9 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectModel } from '@nestjs/sequelize';
 import { randomUUID } from 'crypto';
-import { Repository } from 'typeorm';
 import { PostEntity } from '../database/entities/post.entity';
 import { CreatePostInput, PostRow, PublicPost, UpdatePostInput } from './post.types';
 
@@ -22,8 +21,8 @@ const ALLOWED_COLORS = new Set([
 @Injectable()
 export class PostsService {
   constructor(
-    @InjectRepository(PostEntity)
-    private readonly postsRepository: Repository<PostEntity>,
+    @InjectModel(PostEntity)
+    private readonly postsModel: typeof PostEntity,
   ) {}
 
   async findAll(userId: string): Promise<PublicPost[]> {
@@ -37,9 +36,12 @@ export class PostsService {
     //   `,
     //   [userId],
     // );
-    const rows = await this.postsRepository.find({
+    const rows = await this.postsModel.findAll({
       where: { user_id: userId },
-      order: { is_pinned: 'DESC', updated_at: 'DESC' },
+      order: [
+        ['is_pinned', 'DESC'],
+        ['updated_at', 'DESC'],
+      ],
     });
 
     return rows.map((row) => this.toPublicPost(row));
@@ -70,17 +72,15 @@ export class PostsService {
     //     input.isPinned ?? false,
     //   ],
     // );
-    const post = await this.postsRepository.save(
-      this.postsRepository.create({
-        id: randomUUID(),
-        user_id: userId,
-        title,
-        content,
-        tag: this.cleanTag(input.tag),
-        color: this.cleanColor(input.color),
-        is_pinned: input.isPinned ?? false,
-      }),
-    );
+    const post = await this.postsModel.create({
+      id: randomUUID(),
+      user_id: userId,
+      title,
+      content,
+      tag: this.cleanTag(input.tag),
+      color: this.cleanColor(input.color),
+      is_pinned: input.isPinned ?? false,
+    });
 
     return this.toPublicPost(post);
   }
@@ -123,8 +123,7 @@ export class PostsService {
     //     postId,
     //   ],
     // );
-    await this.postsRepository.update(
-      { id: postId },
+    await this.postsModel.update(
       {
         title,
         content,
@@ -133,6 +132,7 @@ export class PostsService {
         is_pinned: input.isPinned ?? current.isPinned,
         updated_at: new Date(),
       },
+      { where: { id: postId } },
     );
 
     return this.findOne(postId);
@@ -143,7 +143,7 @@ export class PostsService {
 
     // Legacy pg version:
     // await this.database.query('DELETE FROM posts WHERE id = $1', [postId]);
-    await this.postsRepository.delete({ id: postId });
+    await this.postsModel.destroy({ where: { id: postId } });
     return { message: 'Post deleted.' };
   }
 
@@ -165,7 +165,7 @@ export class PostsService {
     //   `,
     //   [postId],
     // );
-    const post = await this.postsRepository.findOne({ where: { id: postId } });
+    const post = await this.postsModel.findOne({ where: { id: postId } });
 
     if (!post) {
       throw new NotFoundException('Post was not found.');

@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { SequelizeModule } from '@nestjs/sequelize';
 import { DatabaseService } from './database.service';
 import { PasswordResetTokenEntity } from './entities/password-reset-token.entity';
 import { PostEntity } from './entities/post.entity';
@@ -10,19 +10,20 @@ import { UserEntity } from './entities/user.entity';
 @Global()
 @Module({
   imports: [
-    TypeOrmModule.forRootAsync({
+    SequelizeModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        url: config.get<string>('DATABASE_URL'),
-        entities: [
+        dialect: 'postgres',
+        uri: config.get<string>('DATABASE_URL'),
+        models: [
           UserEntity,
           PostEntity,
           RefreshTokenEntity,
           PasswordResetTokenEntity,
         ],
-        synchronize: config.get<string>('TYPEORM_SYNCHRONIZE') !== 'false',
+        autoLoadModels: true,
+        synchronize: config.get<string>('SEQUELIZE_SYNCHRONIZE') === 'true',
       }),
     }),
   ],

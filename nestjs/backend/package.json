@@ -6,20 +6,26 @@
     "build": "nest build",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "db:migrate": "sequelize-cli db:migrate --config sequelize.config.cjs --migrations-path src/database/migrations",
+    "db:migrate:status": "sequelize-cli db:migrate:status --config sequelize.config.cjs --migrations-path src/database/migrations",
+    "db:migrate:undo": "sequelize-cli db:migrate:undo --config sequelize.config.cjs --migrations-path src/database/migrations",
+    "db:migrate:undo:all": "sequelize-cli db:migrate:undo:all --config sequelize.config.cjs --migrations-path src/database/migrations",
+    "db:migration:create": "sequelize-cli migration:generate --migrations-path src/database/migrations"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.19",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.19",
     "@nestjs/platform-express": "^11.1.19",
-    "@nestjs/typeorm": "^11.0.1",
+    "@nestjs/sequelize": "^11.0.1",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.13.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "typeorm": "^0.3.28"
+    "sequelize": "^6.37.8",
+    "sequelize-typescript": "^2.1.6"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.14",
@@ -27,6 +33,7 @@
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.10.2",
     "@types/pg": "^8.11.10",
+    "sequelize-cli": "^6.6.5",
     "typescript": "^5.7.2"
   }
 }
