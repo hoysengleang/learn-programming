@@ -1,40 +1,42 @@
 import {
   Column,
-  Entity,
-  OneToMany,
-  PrimaryColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+  DataType,
+  HasMany,
+  Model,
+  PrimaryKey,
+  Table,
+} from 'sequelize-typescript';
 import { PasswordResetTokenEntity } from './password-reset-token.entity';
 import { PostEntity } from './post.entity';
 import { RefreshTokenEntity } from './refresh-token.entity';
 
-@Entity('users')
-export class UserEntity {
-  @PrimaryColumn('uuid')
-  id!: string;
+@Table({ tableName: 'users', timestamps: false })
+export class UserEntity extends Model {
+  @PrimaryKey
+  @Column({ type: DataType.UUID })
+  declare id: string;
 
-  @Column({ type: 'text', unique: true })
-  email!: string;
+  @Column({ type: DataType.TEXT, allowNull: false, unique: true })
+  declare email: string;
 
-  @Column({ type: 'text' })
-  name!: string;
+  @Column({ type: DataType.TEXT, allowNull: false })
+  declare name: string;
 
-  @Column({ type: 'text' })
-  password_hash!: string;
+  @Column({ type: DataType.TEXT, allowNull: false })
+  declare password_hash: string;
 
-  @Column({ type: 'timestamptz', default: () => 'now()' })
-  created_at!: Date;
+  @Column({ type: DataType.DATE, allowNull: false, defaultValue: DataType.NOW })
+  declare created_at: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz', default: () => 'now()' })
-  updated_at!: Date;
+  @Column({ type: DataType.DATE, allowNull: false, defaultValue: DataType.NOW })
+  declare updated_at: Date;
 
-  @OneToMany(() => PostEntity, (post) => post.user)
-  posts?: PostEntity[];
+  @HasMany(() => PostEntity)
+  declare posts?: PostEntity[];
 
-  @OneToMany(() => RefreshTokenEntity, (token) => token.user)
-  refresh_tokens?: RefreshTokenEntity[];
+  @HasMany(() => RefreshTokenEntity)
+  declare refresh_tokens?: RefreshTokenEntity[];
 
-  @OneToMany(() => PasswordResetTokenEntity, (token) => token.user)
-  password_reset_tokens?: PasswordResetTokenEntity[];
+  @HasMany(() => PasswordResetTokenEntity)
+  declare password_reset_tokens?: PasswordResetTokenEntity[];
 }
