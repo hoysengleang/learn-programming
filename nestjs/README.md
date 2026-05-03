@@ -20,11 +20,24 @@ Basic full-stack starter for learning:
 docker compose up --build
 ```
 
+If port `5433` is already in use on your machine, create a top-level `.env`
+file first and pick another host port:
+
+```bash
+cp .env.example .env
+```
+
+Then set:
+
+```text
+POSTGRES_PORT=5434
+```
+
 This starts:
 
 - Frontend: `http://localhost:4201`
 - Backend API: `http://localhost:3000`
-- PostgreSQL: `localhost:5433`
+- PostgreSQL: `localhost:${POSTGRES_PORT:-5433}`
 
 The backend runs database migrations before it starts.
 
@@ -37,7 +50,7 @@ docker compose up -d postgres
 This creates a database at:
 
 ```text
-postgres://postgres:postgres@localhost:5433/nestjs_starter
+postgres://postgres:postgres@localhost:${POSTGRES_PORT:-5433}/nestjs_starter
 ```
 
 ## Backend Setup
@@ -48,6 +61,9 @@ cp .env.example .env
 npm install
 npm run start:dev
 ```
+
+If you changed `POSTGRES_PORT` in the repo root `.env`, set the same value in
+`backend/.env` by updating `DATABASE_URL`.
 
 Backend URL:
 
