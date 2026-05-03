@@ -452,10 +452,7 @@ export class AuthService {
     if (!secret) {
       throw new Error('JWT_SECRET is required.');
     }
-
-    const expiresIn = (this.config.get<string>('JWT_ACCESS_EXPIRES_IN') ??
-      '15m') as jwt.SignOptions['expiresIn'];
-
+    const expiresIn = (this.config.get<string>('JWT_ACCESS_EXPIRES_IN') ??  '15m') as jwt.SignOptions['expiresIn'];
     return jwt.sign(
       {
         sub: user.id,

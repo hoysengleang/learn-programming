@@ -14,10 +14,24 @@ Basic full-stack starter for learning:
 - npm
 - Docker, or a local PostgreSQL database
 
-## Start PostgreSQL
+## Start With Docker Compose
 
 ```bash
-docker compose up -d
+docker compose up --build
+```
+
+This starts:
+
+- Frontend: `http://localhost:4201`
+- Backend API: `http://localhost:3000`
+- PostgreSQL: `localhost:5433`
+
+The backend runs database migrations before it starts.
+
+## Start PostgreSQL Only
+
+```bash
+docker compose up -d postgres
 ```
 
 This creates a database at:

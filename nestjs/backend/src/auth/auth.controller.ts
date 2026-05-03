@@ -1,7 +1,6 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, Get } from '@nestjs/common';
 import { AuthUser } from './auth-user';
 import { CurrentUser } from './auth-user.decorator';
-import { JwtAuthGuard } from './jwt-auth.guard';
 import {
   ChangePasswordInput,
   ForgotPasswordInput,
@@ -52,12 +51,17 @@ export class AuthController {
     return this.authService.resetPassword(body);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Post('change-password')
   changePassword(
     @CurrentUser() user: AuthUser,
     @Body() body: ChangePasswordInput,
   ) {
     return this.authService.changePassword(user.id, body);
+  }
+
+
+  @Get('health')
+  health(){
+    return { status: 'ok' };
   }
 }
